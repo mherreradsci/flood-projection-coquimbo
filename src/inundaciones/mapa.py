@@ -1,0 +1,120 @@
+"""Mapa interactivo folium con las capas del análisis.
+
+Capas: precipitación pronosticada, profundidad proyectada, huellas históricas,
+zonas nuevas (rojo), vías y servicios expuestos.
+"""
+
+import json
+from pathlib import Path
+
+import folium
+import geopandas as gpd
+import matplotlib
+import numpy as np
+import rasterio
+from rasterio.warp import Resampling
+
+from .utils import cargar_config, leer_raster, log, ruta_data, ruta_outputs
+
+MAX_PIXELES_OVERLAY = 1600  # lado mayor de los PNG embebidos en el HTML
+
+
+def _leer_reducido(ruta: Path) -> tuple[np.ndarray, list]:
+    """Lee un raster reducido a tamaño de overlay y sus bounds [[s,o],[n,e]]."""
+    with rasterio.open(ruta) as src:
+        escala = max(src.height, src.width) / MAX_PIXELES_OVERLAY
+        alto = max(1, int(src.height / max(escala, 1)))
+        ancho = max(1, int(src.width / max(escala, 1)))
+        datos = src.read(1, out_shape=(alto, ancho), resampling=Resampling.average)
+        if src.nodata is not None:
+            datos = np.where(datos == src.nodata, np.nan, datos)
+        b = src.bounds
+    return datos, [[b.bottom, b.left], [b.top, b.right]]
+
+
+def _overlay(mapa, ruta, nombre, cmap, vmax=None, opacidad=0.65, mostrar=True,
+             umbral=0.0):
+    datos, bounds = _leer_reducido(ruta)
+    vmax = vmax or float(np.nanmax(datos)) or 1.0
+    norm = matplotlib.colors.Normalize(vmin=0, vmax=vmax)
+    rgba = matplotlib.colormaps[cmap](norm(np.nan_to_num(datos)))
+    rgba[..., 3] = np.where(np.nan_to_num(datos) > umbral, opacidad, 0.0)
+    folium.raster_layers.ImageOverlay(
+        image=rgba, bounds=bounds, name=nombre, show=mostrar, zindex=2,
+    ).add_to(mapa)
+    return vmax
+
+
+def generar_mapa(cfg: dict, sufijo: str = "proyectada") -> Path:
+    meta = json.loads(ruta_data(cfg, "forecast", "meta.json").read_text())
+    o, s, e, n = cfg["region"]["bbox"]
+    mapa = folium.Map(location=[(s + n) / 2, (o + e) / 2], zoom_start=8,
+                      tiles="cartodbpositron", control_scale=True)
+
+    # precipitación
+    _overlay(mapa, ruta_data(cfg, "forecast", "precip_mm.tif"),
+             "Precipitación pronosticada (mm)", "Blues", opacidad=0.45,
+             mostrar=False, umbral=1.0)
+    # profundidad proyectada
+    _overlay(mapa, ruta_outputs(cfg, f"profundidad_{sufijo}.tif"),
+             "Anegamiento proyectado (profundidad m)", "YlGnBu", vmax=3.0,
+             umbral=0.05)
+    # huella histórica
+    ruta_union = ruta_data(cfg, "historical", "huella_historica_union.tif")
+    if ruta_union.exists():
+        _overlay(mapa, ruta_union, "Huella histórica observada (2015/2017)",
+                 "Greys", vmax=1.0, opacidad=0.5, mostrar=False, umbral=0.5)
+
+    # zonas nuevas (lo central del análisis) en rojo
+    ruta_nuevas = ruta_outputs(cfg, f"zonas_nuevas_{sufijo}.geojson")
+    if ruta_nuevas.exists():
+        nuevas = gpd.read_file(ruta_nuevas)
+        if not nuevas.empty:
+            folium.GeoJson(
+                nuevas.__geo_interface__, name="ZONAS NUEVAS de anegamiento",
+                style_function=lambda _: {"color": "#c0392b", "weight": 1,
+                                          "fillColor": "#e74c3c",
+                                          "fillOpacity": 0.55},
+                tooltip="Zona nueva: sin registro de inundación histórica",
+            ).add_to(mapa)
+
+    # exposición
+    ruta_exp = ruta_outputs(cfg, f"exposicion_{sufijo}.json")
+    if ruta_exp.exists():
+        exp = json.loads(ruta_exp.read_text())
+        capa_serv = folium.FeatureGroup(name="Servicios críticos expuestos")
+        for sv in exp.get("servicios", []):
+            folium.Marker(
+                [sv["lat"], sv["lon"]],
+                popup=f"{sv['tipo']}: {sv['nombre']}",
+                icon=folium.Icon(color="red", icon="warning-sign"),
+            ).add_to(capa_serv)
+        capa_serv.add_to(mapa)
+        ruta_vias = ruta_outputs(cfg, f"vias_expuestas_{sufijo}.geojson")
+        if ruta_vias.exists():
+            vias = gpd.read_file(ruta_vias)
+            if not vias.empty:
+                folium.GeoJson(vias.__geo_interface__, name="Vías expuestas",
+                               style_function=lambda _: {"color": "#e67e22",
+                                                         "weight": 2},
+                               show=False).add_to(mapa)
+
+    titulo = (f"<div style='position:fixed;top:10px;left:60px;z-index:1000;"
+              f"background:rgba(255,255,255,.92);padding:8px 14px;border-radius:6px;"
+              f"box-shadow:0 1px 4px rgba(0,0,0,.3);font-family:sans-serif'>"
+              f"<b>Proyección de anegamientos — Región de Coquimbo</b><br>"
+              f"Fuente lluvia: {meta['fuente']} | acumulado máx "
+              f"{meta['precip_max_mm']} mm / {meta['horas']} h | "
+              f"isoterma 0: {meta['isoterma0_m']} m</div>")
+    mapa.get_root().html.add_child(folium.Element(titulo))
+    folium.LayerControl(collapsed=False).add_to(mapa)
+
+    destino = ruta_outputs(cfg, f"mapa_anegamientos_{sufijo}.html")
+    mapa.save(str(destino))
+    log.info("Mapa guardado: %s", destino)
+    return destino
+
+
+if __name__ == "__main__":
+    cfg = cargar_config()
+    print(generar_mapa(cfg))
