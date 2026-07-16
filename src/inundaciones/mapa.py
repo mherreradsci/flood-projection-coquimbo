@@ -62,6 +62,15 @@ def generar_mapa(cfg: dict, sufijo: str = "proyectada") -> Path:
     mapa = folium.Map(location=[(s + n) / 2, (o + e) / 2], zoom_start=8,
                       tiles="cartodbpositron", control_scale=True)
 
+    # base satelital alternativa (Esri World Imagery, gratuita con atribución);
+    # se elige desde el LayerControl, el fondo claro sigue siendo el defecto
+    folium.TileLayer(
+        tiles=("https://server.arcgisonline.com/ArcGIS/rest/services/"
+               "World_Imagery/MapServer/tile/{z}/{y}/{x}"),
+        attr="Esri, Maxar, Earthstar Geographics",
+        name="Satélite (Esri)", show=False,
+    ).add_to(mapa)
+
     # precipitación (alfa gradual: los núcleos intensos resaltan, el resto
     # deja ver el mapa base)
     _overlay(mapa, ruta_data(cfg, "forecast", "precip_mm.tif"),
