@@ -43,7 +43,7 @@ horizonte completo (72 h) en NOAA — el más reciente de ellos es el que usará
 | Parámetro | Valores | Defecto | Descripción |
 |---|---|---|---|
 | `--fuente` | `gfs` \| `ifs` \| `escenario` | `gfs` | Origen de la lluvia: pronóstico GFS 0.25° (NOAA), pronóstico IFS 0.25° (ECMWF open-data) o escenario sintético definido en `config.yaml`. Con `gfs`/`ifs` descarga el ciclo vigente antes de modelar. |
-| `--escenario NOMBRE` | un nombre de la sección `escenarios:` de `config.yaml` (hoy: `extremo_200mm`, `moderado_100mm`) | `extremo_200mm` | Escenario sintético a usar; solo tiene efecto con `--fuente escenario`. |
+| `--escenario NOMBRE` | un nombre de la sección `escenarios:` de `config.yaml` (hoy: `extremo_200mm`, `moderado_100mm`, `costero_120mm`) | `extremo_200mm` | Escenario sintético a usar; solo tiene efecto con `--fuente escenario`. |
 | `--sin-exposicion` | flag (sin valor) | desactivado | Omite la consulta Overpass/OSM de vías y servicios expuestos; el mapa se genera sin esa capa. Si la consulta falla, el script continúa igual con una advertencia. |
 
 Ejemplos:
@@ -60,6 +60,25 @@ Resultado principal:
 pronósticos e indica día y ciclo usados, de modo que ordenar por nombre de
 archivo ordena por ciclo) más GeoTIFF/GeoJSON en `outputs/`, sufijados por fuente
 (`extension_gfs.tif`, `zonas_nuevas_extremo_200mm.geojson`, …).
+
+### Corridas programadas (cron)
+
+`scripts/correr_proyeccion_gfs.sh` es el wrapper para cron/systemd: rutas
+absolutas, candado `flock` contra corridas solapadas y log por corrida en
+`outputs/logs/proyeccion_<timestamp>.log`.
+
+Las horas de ejecución deben seguir la publicación de GFS: cada ciclo (00, 06,
+12, 18 UTC) completa su horizonte de 72 h ~4 h después de la hora del ciclo, y
+el pipeline asume un rezago seguro de 5 h. En Chile continental en invierno
+(UTC−4) eso da corridas a las 01:00, 07:00, 13:00 y 19:00 locales — cada una
+toma el ciclo recién completado. Ejemplo usado durante el evento de julio 2026
+(días 16–21, con guardia de año y entrada de autolimpieza que el último día se
+borra a sí misma y a la de corridas):
+
+```cron
+0 1,7,13,19 16-21 7 * [ "$(date +\%Y)" = "2026" ] && /home/mherrera/Proyectos/meteorologia/scripts/correr_proyeccion_gfs.sh # proyeccion-gfs-jul2026
+30 19 21 7 * crontab -l | grep -v proyeccion-gfs-jul2026 | crontab - # proyeccion-gfs-jul2026
+```
 
 ## Datos usados (todos públicos)
 
