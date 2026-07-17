@@ -5,6 +5,11 @@ evento de precipitación extrema (río atmosférico de julio 2026) y detectar lo
 **puntos nuevos** sin registro histórico de inundación. 100% herramientas de
 código abierto y datos públicos.
 
+![Mapa de proyección de anegamientos sobre Punitaqui: zonas nuevas en rojo y servicios críticos expuestos, sobre imagen satelital](docs/ejemplo_mapa_gfs.jpg)
+
+*Salida real del pipeline (GFS, ciclo 00 UTC del 17-jul-2026) sobre Punitaqui:
+zonas nuevas de anegamiento en rojo y servicios críticos expuestos.*
+
 ## Método
 
 Modelo semi-hidrológico **HAND calibrado**:
@@ -68,10 +73,12 @@ absolutas, candado `flock` contra corridas solapadas y log por corrida en
 `outputs/logs/proyeccion_<timestamp>.log`.
 
 Las horas de ejecución deben seguir la publicación de GFS: cada ciclo (00, 06,
-12, 18 UTC) completa su horizonte de 72 h ~4 h después de la hora del ciclo, y
-el pipeline asume un rezago seguro de 5 h. En Chile continental en invierno
-(UTC−4) eso da corridas a las 01:00, 07:00, 13:00 y 19:00 locales — cada una
-toma el ciclo recién completado. Ejemplo usado durante el evento de julio 2026
+12, 18 UTC) completa su horizonte de 72 h ~4 h después de la hora del ciclo.
+El pipeline sondea NOAA y descarga el ciclo más reciente ya completo (con la
+heurística de rezago fijo de 5 h solo como respaldo si el sondeo falla), así
+que basta programar las corridas después de ese punto: en Chile continental en
+invierno (UTC−4), a las 01:00, 07:00, 13:00 y 19:00 locales — cada una toma el
+ciclo recién completado. Ejemplo usado durante el evento de julio 2026
 (días 16–21, con guardia de año y entrada de autolimpieza que el último día se
 borra a sí misma y a la de corridas):
 
