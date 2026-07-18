@@ -1,9 +1,10 @@
-# Proyección de anegamientos — Región de Coquimbo
+# Proyección de anegamientos — regiones de Coquimbo y Atacama
 
 Sistema en Python para estimar **dónde se producirán anegamientos** ante un
 evento de precipitación extrema (río atmosférico de julio 2026) y detectar los
 **puntos nuevos** sin registro histórico de inundación. 100% herramientas de
-código abierto y datos públicos.
+código abierto y datos públicos. Multi-región: cada región es un archivo de
+configuración (ver [Multi-región](#multi-región)).
 
 ![Mapa de proyección de anegamientos sobre Punitaqui: zonas nuevas en rojo y servicios críticos expuestos, sobre imagen satelital](docs/ejemplo_mapa_gfs.jpg)
 
@@ -48,6 +49,39 @@ python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 .venv/bin/python scripts/03_calibrar.py           # contra eventos históricos
 .venv/bin/python scripts/04_proyectar.py --fuente gfs
 ```
+
+### Multi-región
+
+Cada región vive en su propio archivo de configuración: `config.yaml` es la
+región por defecto (Coquimbo) y `config_atacama.yaml` la Región de Atacama.
+Los cuatro scripts aceptan `--config`; sin ese flag usan `config.yaml`:
+
+```bash
+# Coquimbo (config.yaml, por defecto)
+.venv/bin/python scripts/04_proyectar.py --fuente gfs
+
+# Atacama: mismo pipeline, otro config. Los pasos 01-03 son una sola vez
+# por región (cachean por existencia); la operación recurrente es el 04.
+.venv/bin/python scripts/01_descargar_datos.py --config config_atacama.yaml
+.venv/bin/python scripts/02_preparar_terreno.py --config config_atacama.yaml
+.venv/bin/python scripts/03_calibrar.py --config config_atacama.yaml
+.venv/bin/python scripts/04_proyectar.py --fuente gfs --config config_atacama.yaml
+```
+
+El `region.id` de cada config define la subcarpeta donde vive su estado
+(`data/coquimbo/`, `outputs/atacama/`, `publicacion/atacama/`, …), así que
+las regiones no comparten archivos y pueden correr en paralelo.
+
+Para agregar una región nueva: copiar `config.yaml` a `config_<region>.yaml`,
+definir `region.id`, `nombre`, `osm_geocode` y `bbox`, redefinir
+`calibracion.eventos` con eventos/huellas de esa región (ver los comentarios
+de `config_atacama.yaml` como guía del proceso, incluida la verificación de
+cobertura GFD/Sentinel-1) y correr 01→02→03→04 con `--config`.
+
+Cada corrida del paso 04 publica además su mapa con nombre estable en
+`publicacion/<region>/mapa_<fuente>.html` y actualiza
+`publicacion/manifest.json` — índice global (regiones + ítems con fuente,
+ciclo y acumulados) pensado para servicios externos de visualización.
 
 Utilitario: `scripts/ciclo_vigente.py` muestra qué ciclos GFS ya publicaron el
 horizonte completo (72 h) en NOAA — el más reciente de ellos es el que usará
