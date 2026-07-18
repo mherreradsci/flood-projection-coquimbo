@@ -71,17 +71,17 @@ Ejemplos:
 ```
 
 Resultado principal:
-`outputs/mapa_anegamientos_<fuente>[_<AAAAMMDD>_<HH>utc]_<AAAAMMDD-HHMMSS>.html`
+`outputs/<region>/mapa_anegamientos_<fuente>[_<AAAAMMDD>_<HH>utc]_<AAAAMMDD-HHMMSS>.html`
 (folium, capas conmutables; el tag `_<AAAAMMDD>_<HH>utc` aparece solo con
 pronósticos e indica día y ciclo usados, de modo que ordenar por nombre de
-archivo ordena por ciclo) más GeoTIFF/GeoJSON en `outputs/`, sufijados por fuente
+archivo ordena por ciclo) más GeoTIFF/GeoJSON en `outputs/<region>/` (p. ej. `outputs/coquimbo/`), sufijados por fuente
 (`extension_gfs.tif`, `zonas_nuevas_extremo_200mm.geojson`, …).
 
 ### Corridas programadas (cron)
 
 `scripts/correr_proyeccion_gfs.sh` es el wrapper para cron/systemd: rutas
 absolutas, candado `flock` contra corridas solapadas y log por corrida en
-`outputs/logs/proyeccion_<timestamp>.log`.
+`outputs/coquimbo/logs/proyeccion_<timestamp>.log`.
 
 Las horas de ejecución deben seguir la publicación de GFS: cada ciclo (00, 06,
 12, 18 UTC) completa su horizonte de 72 h ~4 h después de la hora del ciclo.

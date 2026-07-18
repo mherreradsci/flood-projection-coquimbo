@@ -4,7 +4,7 @@
 set -euo pipefail
 
 REPO="/home/mherrera/Proyectos/meteorologia"
-LOGDIR="$REPO/outputs/logs"
+LOGDIR="$REPO/outputs/coquimbo/logs"
 mkdir -p "$LOGDIR"
 
 # Candado: si una corrida anterior sigue viva (p. ej. NOMADS lento), no solapar.
