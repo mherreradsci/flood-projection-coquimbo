@@ -8,17 +8,28 @@ Sistema en Python para proyectar anegamientos en la Región de Coquimbo ante pre
 
 ## Comandos
 
-No hay tests ni linter configurados. El entorno vive en `.venv`:
+El entorno vive en `.venv`. Linter (Ruff) y tests (pytest) son dependencias de desarrollo, separadas en `requirements-dev.txt`:
 
 ```bash
 python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
+.venv/bin/pip install -r requirements-dev.txt   # solo para lintear/testear
 
 # Pipeline (en orden; cada paso cachea sus salidas y se salta si ya existen)
 .venv/bin/python scripts/01_descargar_datos.py            # insumos + GFS vigente (--sin-pronostico para omitir GFS)
 .venv/bin/python scripts/02_preparar_terreno.py           # flujo/drenaje/HAND (lento la primera vez)
 .venv/bin/python scripts/03_calibrar.py                   # → data/calibracion.json + outputs/calibracion_reporte.csv
 .venv/bin/python scripts/04_proyectar.py --fuente gfs     # también: ifs | escenario --escenario extremo_200mm
+
+.venv/bin/ruff check .    # lint (config en pyproject.toml); --fix aplica lo autocorregible
+.venv/bin/pytest          # tests unitarios en tests/, sin datos reales (ver más abajo)
 ```
+
+`tests/` cubre solo funciones puras de matemática/numpy que son fáciles de romper en silencio
+(`flood_model._umbral_para_volumen`, `calibrate._metricas`, `utils.area_celda_m2`) usando arrays
+sintéticos — no huellas ni rasters reales. El resto del pipeline (`terrain`, `ingest_*`) depende de
+DEM/GFS/Sentinel-1 reales y de `pysheds`/`openeo`, por lo que no tiene tests automatizados; se
+verifica corriendo el pipeline. Al agregar una función nueva sin I/O ni dependencias externas,
+sumarle un test en `tests/`.
 
 Para ejecutar módulos de la librería de forma directa (los scripts hacen `sys.path.insert` de `src/`; el paquete no está instalado):
 

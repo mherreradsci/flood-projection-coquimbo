@@ -8,3 +8,7 @@ select = ["E", "F", "I", "UP", "B", "W"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["inundaciones"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
