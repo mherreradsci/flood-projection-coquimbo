@@ -24,12 +24,20 @@ python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 .venv/bin/pytest          # tests unitarios en tests/, sin datos reales (ver más abajo)
 ```
 
-`tests/` cubre solo funciones puras de matemática/numpy que son fáciles de romper en silencio
-(`flood_model._umbral_para_volumen`, `calibrate._metricas`, `utils.area_celda_m2`) usando arrays
-sintéticos — no huellas ni rasters reales. El resto del pipeline (`terrain`, `ingest_*`) depende de
-DEM/GFS/Sentinel-1 reales y de `pysheds`/`openeo`, por lo que no tiene tests automatizados; se
-verifica corriendo el pipeline. Al agregar una función nueva sin I/O ni dependencias externas,
-sumarle un test en `tests/`.
+`tests/` tiene dos categorías. La mayoría son funciones puras de matemática/numpy/pandas fáciles
+de romper en silencio (`flood_model._umbral_para_volumen`, `calibrate._metricas`,
+`utils.area_celda_m2`) usando arrays sintéticos, sin huellas ni rasters reales. Además,
+`test_*_integracion.py` ejercita funciones de orquestación que sí hacen I/O real mínimo —
+escriben/leen GeoTIFF sintéticos en `tmp_path` (vía `utils.guardar_raster`/`leer_raster`) para
+probar el cruce por id de subcuenca u otro "wiring" que un test de función pura no atrapa
+(`test_flood_model_integracion.py::modelar_inundacion`). El truco para evitar red/datos reales:
+aprovechar la caché por existencia de archivo (ver más abajo) precreando el archivo cacheado
+(p. ej. `subcuencas_id.tif`) para que la función corte antes de llegar a la parte de I/O externo.
+Esto solo funciona si el límite de caché coincide con el límite de lo no testeable; no todas las
+funciones de orquestación se prestan para esto. El resto del pipeline (`terrain`, `ingest_*`)
+depende de DEM/GFS/Sentinel-1 reales y de `pysheds`/`openeo`, por lo que no tiene tests
+automatizados; se verifica corriendo el pipeline. Al agregar una función nueva sin I/O ni
+dependencias externas, sumarle un test en `tests/`.
 
 Para ejecutar módulos de la librería de forma directa (los scripts hacen `sys.path.insert` de `src/`; el paquete no está instalado):
 
