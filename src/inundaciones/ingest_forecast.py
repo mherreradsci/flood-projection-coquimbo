@@ -9,6 +9,7 @@ de outputs/, para que las corridas de distintas fuentes no se pisen entre sí.
 """
 
 import json
+from collections.abc import Callable
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -63,9 +64,9 @@ def _isoterma0_desde_perfil(t: np.ndarray, z: np.ndarray, defecto_m: float) -> f
     return float(z[i] + frac * (z[i + 1] - z[i]))
 
 
-def _ultimo_ciclo_gfs() -> datetime:
+def _ultimo_ciclo_gfs(ahora: datetime | None = None) -> datetime:
     """Último ciclo GFS plausiblemente publicado (~5 h de rezago)."""
-    ahora = datetime.now(timezone.utc) - timedelta(hours=5)
+    ahora = (ahora or datetime.now(timezone.utc)) - timedelta(hours=5)
     hora_ciclo = (ahora.hour // 6) * 6
     return ahora.replace(hour=hora_ciclo, minute=0, second=0, microsecond=0)
 
@@ -74,6 +75,26 @@ def _ultimo_ciclo_gfs() -> datetime:
 # que usa Herbie); el .idx es liviano y sirve como testigo de disponibilidad
 _URL_IDX_GFS = ("https://noaa-gfs-bdp-pds.s3.amazonaws.com/"
                 "gfs.{c:%Y%m%d}/{c:%H}/atmos/gfs.t{c:%H}z.pgrb2.0p25.f{fxx:03d}.idx")
+
+
+def _estado_ciclo(existe: Callable[[int], bool], horas: int) -> dict:
+    """Completitud de un ciclo GFS ya localizado.
+
+    `existe(fxx)` consulta si el .idx de ese paso de pronóstico ya está en
+    el servidor. NOAA publica progresivamente desde f000, así que un ciclo
+    puede estar parcialmente publicado: se distingue "no publicado en
+    absoluto" (ni siquiera f000) de "publicando, todavía no llega a fxx"
+    (se ubica el último paso disponible escaneando hacia atrás desde
+    horas-6). Ver sondear_ciclos_gfs para el contrato de retorno completo.
+    """
+    if existe(horas):
+        return {"completo": True, "ultima_fxx": horas}
+    if not existe(0):
+        return {"completo": False, "ultima_fxx": None}
+    for fxx in range(horas - 6, 0, -6):
+        if existe(fxx):
+            return {"completo": False, "ultima_fxx": fxx}
+    return {"completo": False, "ultima_fxx": 0}
 
 
 def sondear_ciclos_gfs(horas: int = 72, max_ciclos: int = 4):
@@ -104,17 +125,8 @@ def sondear_ciclos_gfs(horas: int = 72, max_ciclos: int = 4):
 
     for i in range(max_ciclos):
         c = ciclo - timedelta(hours=6 * i)
-        if _existe(c, horas):
-            yield {"ciclo": c, "completo": True, "ultima_fxx": horas}
-        elif not _existe(c, 0):
-            yield {"ciclo": c, "completo": False, "ultima_fxx": None}
-        else:
-            ultima = 0
-            for fxx in range(horas - 6, 0, -6):
-                if _existe(c, fxx):
-                    ultima = fxx
-                    break
-            yield {"ciclo": c, "completo": False, "ultima_fxx": ultima}
+        estado = _estado_ciclo(lambda fxx, c=c: _existe(c, fxx), horas)
+        yield {"ciclo": c, **estado}
 
 
 def _ciclo_gfs_para_descarga(horas: int) -> datetime:
