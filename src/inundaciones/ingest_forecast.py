@@ -46,6 +46,23 @@ def _a_grilla_dem(cfg: dict, datos: np.ndarray, transform, crs) -> np.ndarray:
     return salida
 
 
+def _isoterma0_desde_perfil(t: np.ndarray, z: np.ndarray, defecto_m: float) -> float:
+    """Altura (m) del cruce de 0 °C más alto en un perfil t(K)/z(m) desordenado.
+
+    Ordena por altura y toma el último cruce de signo de (t - 273.15), para
+    quedarse con el nivel de congelación más alto ante inversiones térmicas
+    (perfil puede cruzar 0 °C más de una vez). Sin cruces, devuelve `defecto_m`.
+    """
+    orden = np.argsort(z)
+    t, z = np.asarray(t)[orden], np.asarray(z)[orden]
+    cruces = np.nonzero((t[:-1] - 273.15) * (t[1:] - 273.15) <= 0)[0]
+    if not cruces.size:
+        return float(defecto_m)
+    i = cruces[-1]
+    frac = (273.15 - t[i]) / (t[i + 1] - t[i])
+    return float(z[i] + frac * (z[i + 1] - z[i]))
+
+
 def _ultimo_ciclo_gfs() -> datetime:
     """Último ciclo GFS plausiblemente publicado (~5 h de rezago)."""
     ahora = datetime.now(timezone.utc) - timedelta(hours=5)
@@ -241,15 +258,8 @@ def descargar_ifs(cfg: dict) -> tuple[Path, dict]:
         perfil = dpl.sel(latitude=slice(n + 0.5, s - 0.5),
                          longitude=slice(o - 0.5, e + 0.5)).mean(
                              dim=["latitude", "longitude"])
-        t = perfil["t"].values      # K, por nivel
-        z = perfil["gh"].values     # m geopotencial
-        orden = np.argsort(z)
-        t, z = t[orden], z[orden]
-        cruces = np.nonzero((t[:-1] - 273.15) * (t[1:] - 273.15) <= 0)[0]
-        if cruces.size:
-            i = cruces[-1]  # cruce más alto (perfil puede tener inversiones)
-            frac = (273.15 - t[i]) / (t[i + 1] - t[i])
-            isoterma = float(z[i] + frac * (z[i + 1] - z[i]))
+        isoterma = _isoterma0_desde_perfil(
+            perfil["t"].values, perfil["gh"].values, isoterma)
     except Exception as exc:
         log.warning("Isoterma IFS no disponible (%s); uso %d m", exc, isoterma)
 
