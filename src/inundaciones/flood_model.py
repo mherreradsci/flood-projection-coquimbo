@@ -50,6 +50,20 @@ def _umbral_para_volumen(hand_orden: np.ndarray, volumen_m3: float,
     return float(min(max(h, 0.0), hand_max))
 
 
+def _volumen_bajo_umbral(hand_orden: np.ndarray, h: float, celda_m2: float) -> float:
+    """Volumen (m³) contenido bajo el umbral h: Σ (h − HAND_i)·celda_m2 para HAND_i < h.
+
+    Inversa de _umbral_para_volumen (da el umbral dado un volumen); esta
+    devuelve el volumen dado un umbral. hand_orden: valores HAND válidos,
+    ordenados ascendentes. La usa `calibrate.py` para traducir el corredor
+    percentil-80 observado a un volumen comparable con el modelado.
+    """
+    if hand_orden.size == 0:
+        return 0.0
+    k = int(np.searchsorted(hand_orden, h, side="right"))
+    return float((h * k - hand_orden[:k].sum()) * celda_m2)
+
+
 def modelar_inundacion(cfg: dict, volumenes: pd.DataFrame,
                        sufijo: str = "proyectada") -> dict:
     """Raster de profundidad (m) y máscara de extensión para los volúmenes dados."""

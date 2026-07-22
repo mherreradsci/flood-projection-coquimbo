@@ -22,6 +22,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+from .flood_model import _volumen_bajo_umbral
 from .runoff import calcular_escorrentia, rasterizar_subcuencas
 from .utils import area_celda_m2, cargar_config, leer_raster, log, ruta_data, ruta_outputs
 
@@ -77,8 +78,7 @@ def calibrar(cfg: dict) -> Path:
             m = _metricas(hand_sub <= h_obs, obs_sub)
 
             valores = np.sort(hand_sub.astype("float64"))
-            k = int(np.searchsorted(valores, h_obs, side="right"))
-            v_obs = float((h_obs * k - valores[:k].sum()) * celda_m2)
+            v_obs = _volumen_bajo_umbral(valores, h_obs, celda_m2)
             factor = float(np.clip(v_obs / fila.volumen_m3, f_min, f_max))
             filas.append({"evento": evento["nombre"], "HYBAS_ID": fila.HYBAS_ID,
                           "n_obs": n_obs, "h_obs_m": h_obs, "factor": factor, **m})
