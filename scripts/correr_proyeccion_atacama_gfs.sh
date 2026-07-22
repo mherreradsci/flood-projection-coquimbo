@@ -3,7 +3,7 @@
 # Cron no hereda el entorno de la sesión, así que todo va con rutas absolutas.
 set -euo pipefail
 
-REPO="/home/mherrera/Proyectos/meteorologia"
+REPO="/home/mherrera//Proyectos/meteorologia/meteorologia-flood-projections"
 LOGDIR="$REPO/outputs/atacama/logs"
 mkdir -p "$LOGDIR"
 
